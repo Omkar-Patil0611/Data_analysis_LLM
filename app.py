@@ -28,14 +28,29 @@ def upload_file():
     if 'file' not in request.files:
         return jsonify({"error": "No file uploaded"}), 400
     file = request.files['file']
-    if file.filename == '' or not allowed_file(file.filename):
-        return jsonify({"error": "Invalid file type"}), 400
+    if file.filename == '':
+        return jsonify({"error": "No file selected"}), 400
+    
+    # Check if the file extension is allowed (CSV or Excel)
+    extension = file.filename.rsplit('.', 1)[1].lower()
+    allowed_extensions = ['csv', 'xlsx', 'xls']
+    if extension not in allowed_extensions:
+        return jsonify({"error": "Invalid file type. Only CSV and Excel files are allowed."}), 400
     
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
     file.save(filepath)
-    dataset = pd.read_csv(filepath)
+    
+    try:
+        if extension == 'csv':
+            dataset = pd.read_csv(filepath)
+        else:
+            dataset = pd.read_excel(filepath)
+    except Exception as e:
+        return jsonify({"error": f"Error processing file: {e}"}), 500
+
     data_summary = generate_summary(dataset)
     return jsonify({"message": "File uploaded successfully", "summary": data_summary})
+
 
 @app.route('/insights', methods=['GET'])
 def insights():
