@@ -1,101 +1,94 @@
-import streamlit as st  # type: ignore
+from flask import Flask, request, render_template, jsonify
 import pandas as pd
 from data_insights import generate_summary
 from query_processor import process_query
 from code_executor import run_generated_code
-import warnings
+import os
+import io
+import base64
+import matplotlib.pyplot as plt
 
-warnings.filterwarnings("ignore")
+app = Flask(__name__)
+UPLOAD_FOLDER = "uploads"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# Streamlit App UI
-st.title("Data Navigator: Simplify Exploration")
+dataset = None  # Global variable to hold dataset
 
-# File uploader for CSV and Excel files
-uploaded_file = st.file_uploader("Upload a CSV or Excel file to start exploring your data:", type=["csv", "xlsx", "xls"])
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() == 'csv'
 
-if uploaded_file:
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    global dataset
+    if 'file' not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+    file = request.files['file']
+    if file.filename == '' or not allowed_file(file.filename):
+        return jsonify({"error": "Invalid file type"}), 400
+    
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+    file.save(filepath)
+    dataset = pd.read_csv(filepath)
+    data_summary = generate_summary(dataset)
+    return jsonify({"message": "File uploaded successfully", "summary": data_summary})
+
+@app.route('/insights', methods=['GET'])
+def insights():
+    global dataset
+    if dataset is None:
+        return jsonify({"error": "No dataset uploaded"}), 400
+
+    insights = {
+        "null_values": dataset.isnull().sum().to_dict(),
+        "unique_values": {col: int(dataset[col].nunique()) for col in dataset.columns},
+        "duplicate_records": int(dataset.duplicated().sum()),
+        "descriptive_stats": dataset.describe().applymap(lambda x: float(x)).to_dict(),
+        "numeric_summary": dataset.select_dtypes(include='number').describe().applymap(lambda x: float(x)).to_dict()
+    }
+    return jsonify(insights)
+
+@app.route('/query', methods=['POST'])
+def query_data():
+    global dataset
+    if dataset is None:
+        return jsonify({"error": "No dataset uploaded"}), 400
+    
+    query = request.json.get('query')
+    if not query:
+        return jsonify({"error": "No query provided"}), 400
+    
     try:
-        # Read dataset based on file extension
-        if uploaded_file.name.endswith('.csv'):
-            dataset = pd.read_csv(uploaded_file)
-        else:
-            dataset = pd.read_excel(uploaded_file, engine='openpyxl')  # Ensure openpyxl is installed for .xlsx
-
-        # Generate data summary
-        data_summary = generate_summary(dataset)
-
-        # Display dataset snapshot
-        st.write("### Dataset Snapshot:")
-        st.dataframe(dataset.head())
-
-        # Detailed data insights
-        if st.checkbox("View Detailed Data Insights"):
-            tabs = st.tabs(["Null Values", "Unique Values", "Duplicate Records", "Descriptive Stats", "Numeric Summary"])
-            
-            # Null values
-            with tabs[0]:
-                null_counts = dataset.isnull().sum()
-                st.write("Null Values by Column:")
-                st.dataframe(null_counts)
-                st.write(f"**Total Null Values:** {null_counts.sum()}")
-
-            # Unique values
-            with tabs[1]:
-                unique_counts = {col: dataset[col].nunique() for col in dataset.columns}
-                st.write("Unique Values by Column:")
-                st.dataframe(pd.DataFrame(list(unique_counts.items()), columns=["Column", "Unique Count"]))
-
-            # Duplicate records
-            with tabs[2]:
-                duplicate_count = dataset.duplicated().sum()
-                st.write(f"**Total Duplicate Records:** {duplicate_count}")
-
-            # Descriptive statistics
-            with tabs[3]:
-                st.write("Statistical Summary:")
-                st.dataframe(dataset.describe())
-
-            # Numeric column summary
-            with tabs[4]:
-                numeric_columns = dataset.select_dtypes(include="number")
-                if not numeric_columns.empty:
-                    st.write("Numeric Column Summary:")
-                    numeric_summary = numeric_columns.describe().T
-                    st.dataframe(numeric_summary)
-                else:
-                    st.write("No numeric columns in the dataset.")
-
-        # Query input for data exploration
-        st.subheader("Ask Questions About Your Data")
-        query = st.text_input("Enter a question about the data:")
-
-        if query:
-            with st.spinner("Analyzing your query..."):
-                try:
-                    # Generate code from the query
-                    generated_code = process_query(query, data_summary)
-                    if st.checkbox("Display Generated Code"):
-                        st.code(generated_code, language="python")
-
-                    # Execute the generated code
-                    execution_results, execution_output = run_generated_code(generated_code, dataset)
-
-                    # Display results
-                    if execution_output:
-                        st.write(execution_output)
-
-                    # Handle matplotlib plots
-                    if "plt" in execution_results:
-                        st.pyplot(execution_results["plt"].gcf())  # type: ignore
-
-                    # Handle general execution results
-                    if isinstance(execution_results, str):
-                        st.error(execution_results)
-                    else:
-                        st.success("Code executed successfully!")
-
-                except Exception as execution_error:
-                    st.error(f"An error occurred during code execution: {execution_error}")
-
+        # Generate code based on the user's query and dataset summary
+        generated_code = process_query(query, generate_summary(dataset))
+        # Execute the generated code (which may produce a Matplotlib plot)
+        execution_results, execution_output = run_generated_code(generated_code, dataset)
+        
+        # Check for any Matplotlib figures and convert the last one to a Base64 string
+        plot_image = None
+        figs = [plt.figure(num) for num in plt.get_fignums()]
+        if figs:
+            fig = figs[-1]  # Use the most recent figure
+            buf = io.BytesIO()
+            fig.savefig(buf, format='png')
+            buf.seek(0)
+            plot_image = base64.b64encode(buf.read()).decode('utf-8')
+            plt.close(fig)
+        
+        response = {
+            "generated_code": generated_code,
+            "execution_output": execution_output,
+            "plot_image": plot_image
+        }
+        if isinstance(execution_results, str):
+            response["error"] = execution_results
+        return jsonify(response)
     except Exception as e:
-        st.error(f"Error loading file: {e}")
+        return jsonify({"error": f"Execution error: {e}"}), 500
+
+if __name__ == '__main__':
+    app.run(debug=True)

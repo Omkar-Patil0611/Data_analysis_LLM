@@ -1,16 +1,11 @@
 from groq import Groq #type: ignore
 import streamlit as st # type: ignore
 from data_insights import generate_summary
-from dotenv import load_dotenv
-import os
 
-# Load environment variables from .env file
-load_dotenv()
-
-# Access the API key
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 # Initialize Groq API
+# GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 
+GROQ_API_KEY = "add your API key"
 groq_client = Groq(api_key=GROQ_API_KEY)
 def process_query(query, data_summary):
     system_message = (
