@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Data Analysis</title>
+</head>
+<body>
+    <h1>Upload a CSV or Excel File</h1>
+    <form action="/" method="post" enctype="multipart/form-data">
+        <input type="file" name="file">
+        <button type="submit">Upload</button>
+    </form>
+    
+    {% if dataset_preview %}
+        <h2>Dataset Preview</h2>
+        {{ dataset_preview | safe }}
+
+        <h2>Null Values</h2>
+        {{ null_values | safe }}
+
+        <h2>Unique Values</h2>
+        {{ unique_values | safe }}
+
+        <h2>Duplicate Records Count: {{ duplicate_count }}</h2>
+    {% endif %}
+</body>
+</html>
