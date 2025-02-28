@@ -1,12 +1,16 @@
-from groq import Groq #type: ignore
-import streamlit as st # type: ignore
+import openai  # type: ignore
+import streamlit as st  # type: ignore
 from data_insights import generate_summary
+import os
 
-# Initialize Groq API
-# GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+# Initialize OpenAI API
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+openai.api_key = OPENAI_API_KEY
 
-GROQ_API_KEY = "add your API key"
-groq_client = Groq(api_key=GROQ_API_KEY)
+# # Initialize OpenAI API
+# OPENAI_API_KEY = "add your API key"
+# openai.api_key = OPENAI_API_KEY
+
 def process_query(query, data_summary):
     system_message = (
         f"You are a highly skilled and professional data analyst proficient in Python programming and data visualization tools like Pandas and Matplotlib.\n"
@@ -29,11 +33,11 @@ def process_query(query, data_summary):
         {"role": "user", "content": query}
     ]
 
-    # Query Llama
-    response = groq_client.chat.completions.create(
-        model="llama3-70b-8192",
+    # Query OpenAI
+    response = openai.ChatCompletion.create(
+        model="gpt-4",
         messages=messages
     )
 
     # Return generated code
-    return response.choices[0].message.content
+    return response["choices"][0]["message"]["content"]
