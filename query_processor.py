@@ -4,7 +4,7 @@
 
 # # Initialize Groq API
 # # GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
-# GROQ_API_KEY = "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"
+# GROQ_API_KEY = ""
 # groq_client = Groq(api_key=GROQ_API_KEY)
 # def process_query(query, data_summary):
 #     system_message = (
@@ -45,7 +45,7 @@ from data_insights import generate_summary
 import os
 
 # Initialize Gemini API
-GEMINI_API_KEY = "AIzaSyDfY97lFPNSKpRbFYIISdpnddIMIFuD28I"
+GEMINI_API_KEY = ""
 genai.configure(api_key=GEMINI_API_KEY)
 
 def process_query(query, data_summary):
