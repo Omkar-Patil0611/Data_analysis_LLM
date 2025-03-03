@@ -1,0 +1,8 @@
+pandas
+numpy
+openpyxl
+streamlit
+spacy
+sentence-transformers
+matplotlib
+groq
