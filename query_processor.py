@@ -1,11 +1,11 @@
-# from groq import Groq #type: ignore
+from groq import Groq #type: ignore
 # import streamlit as st # type: ignore
 # from data_insights import generate_summary
 
-# # Initialize Groq API
-# # GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
-# GROQ_API_KEY = ""
-# groq_client = Groq(api_key=GROQ_API_KEY)
+# Initialize Groq API
+# GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+GROQ_API_KEY = ""
+groq_client = Groq(api_key=GROQ_API_KEY)
 # def process_query(query, data_summary):
 #     system_message = (
 #         f"You are a highly skilled and professional data analyst proficient in Python programming and data visualization tools like Pandas and Matplotlib.\n"
@@ -73,3 +73,42 @@ def process_query(query, data_summary):
 
     # Return generated code
     return response.text
+
+
+def process_NLP_query(query, data_summary):
+    system_message = (
+        f"You are a highly intelligent AI assistant with expertise in data analysis and NLP.\n"
+        f"The dataset summary is provided below:\n{data_summary}\n"
+        "Your task is to respond to user queries in a **conversational, natural language style**.\n"
+        "Answer questions about the dataset based on the summary using the following guidelines:\n\n"
+        "1. **For Descriptive Queries:**\n"
+        "   - Explain the dataset's key insights in **simple language**.\n"
+        "   - Mention top trends, correlations, and unusual patterns.\n"
+        "   - Avoid technical jargon unless explicitly requested.\n\n"
+        "2. **For Comparison Queries:**\n"
+        "   - Compare different features in the dataset (e.g., 'Which product has higher ratings?').\n"
+        "   - Use easy-to-understand explanations.\n\n"
+        "3. **For Statistical Queries:**\n"
+        "   - Provide direct answers like averages, maximums, minimums, and correlations.\n"
+        "   - Avoid returning raw statistics without explanation.\n\n"
+        "4. **For NLP Queries:**\n"
+        "   - Summarize text-based insights if the dataset contains text columns.\n"
+        "   - Answer like a friendly analyst by highlighting common keywords, sentiment, or patterns.\n\n"
+        "**Always provide the answer directly — without Python code or complex numbers — unless the user specifically requests code.**"
+    )
+
+    # Chat messages for the LLM
+    messages = [
+        {"role": "system", "content": system_message},
+        {"role": "user", "content": query}
+    ]
+
+    # Query Llama model
+    response = groq_client.chat.completions.create(
+        model="llama3-70b-8192",
+        messages=messages
+    )
+
+    # Return the natural language response
+    return response.choices[0].message.content
+
