@@ -1,13 +1,14 @@
-import streamlit as st  # type: ignore
+import streamlit as st  # type: ignore 
 import pandas as pd
-from data_insights import generate_summary
-from query_handler import process_query
+from data_insights import generate_summary, load_dataset
+from query_processor import process_query 
+from query_processor import process_NLP_query
 from code_executor import run_generated_code
-from data_loader import load_dataset  # Importing data loader
+# from data_loader import load_dataset  # Importing data loader
 import warnings
 
 warnings.filterwarnings("ignore")
- 
+
 # Streamlit App UI
 st.title("Data Navigator: Simplify Exploration")
 
@@ -22,78 +23,121 @@ if uploaded_file:
         # Generate data summary
         data_summary = generate_summary(dataset)
 
-        # Display dataset snapshot
-        st.write("### Dataset Snapshot:")
-        st.dataframe(dataset.head())
+        # Create two tabs: Data Overview & Chat with Data
+        tab1, tab2 = st.tabs(["📊 Data Overview", "💬 Chat with Data"])
 
-        # Detailed data insights
-        if st.checkbox("View Detailed Data Insights"):
-            tabs = st.tabs(["Null Values", "Unique Values", "Duplicate Records", "Descriptive Stats", "Numeric Summary"])
-            
-            # Null values
-            with tabs[0]:
-                null_counts = dataset.isnull().sum()
-                st.write("Null Values by Column:")
-                st.dataframe(null_counts)
-                st.write(f"**Total Null Values:** {null_counts.sum()}")
+        with tab1:
+            # Display dataset snapshot
+            st.write("### Dataset Snapshot:")
+            st.dataframe(dataset.head())
 
-            # Unique values
-            with tabs[1]:
-                unique_counts = {col: dataset[col].nunique() for col in dataset.columns}
-                st.write("Unique Values by Column:")
-                st.dataframe(pd.DataFrame(list(unique_counts.items()), columns=["Column", "Unique Count"]))
+            # Detailed data insights
+            if st.checkbox("View Detailed Data Insights"):
+                insights_tabs = st.tabs(["Null Values", "Unique Values", "Duplicate Records", "Descriptive Stats", "Numeric Summary"])
 
-            # Duplicate records
-            with tabs[2]:
-                duplicate_count = dataset.duplicated().sum()
-                st.write(f"**Total Duplicate Records:** {duplicate_count}")
+                # Null values
+                with insights_tabs[0]:
+                    null_counts = dataset.isnull().sum()
+                    st.write("Null Values by Column:")
+                    st.dataframe(null_counts)
+                    st.write(f"**Total Null Values:** {null_counts.sum()}")
 
-            # Descriptive statistics
-            with tabs[3]:
-                st.write("Statistical Summary:")
-                st.dataframe(dataset.describe())
+                # Unique values
+                with insights_tabs[1]:
+                    unique_counts = {col: dataset[col].nunique() for col in dataset.columns}
+                    st.write("Unique Values by Column:")
+                    st.dataframe(pd.DataFrame(list(unique_counts.items()), columns=["Column", "Unique Count"]))
 
-            # Numeric column summary
-            with tabs[4]:
-                numeric_columns = dataset.select_dtypes(include="number")
-                if not numeric_columns.empty:
-                    st.write("Numeric Column Summary:")
-                    numeric_summary = numeric_columns.describe().T
-                    st.dataframe(numeric_summary)
-                else:
-                    st.write("No numeric columns in the dataset.")
+                # Duplicate records
+                with insights_tabs[2]:
+                    duplicate_count = dataset.duplicated().sum()
+                    st.write(f"**Total Duplicate Records:** {duplicate_count}")
 
-        # Query input for data exploration
-        st.subheader("Ask Questions About Your Data")
-        query = st.text_input("Enter a question about the data:")
+                # Descriptive statistics
+                with insights_tabs[3]:
+                    st.write("Statistical Summary:")
+                    st.dataframe(dataset.describe())
 
-        if query:
-            with st.spinner("Analyzing your query..."):
-                try:
-                    # Generate code from the query
-                    generated_code = process_query(query, data_summary)
-                    if st.checkbox("Display Generated Code"):
-                        st.code(generated_code, language="python")
-
-                    # Execute the generated code
-                    execution_results, execution_output = run_generated_code(generated_code, dataset)
-
-                    # Display results
-                    if execution_output:
-                        st.write(execution_output)
-
-                    # Handle matplotlib plots
-                    if "plt" in execution_results:
-                        st.pyplot(execution_results["plt"].gcf())  # type: ignore
-
-                    # Handle general execution results
-                    if isinstance(execution_results, str):
-                        st.error(execution_results)
+                # Numeric column summary
+                with insights_tabs[4]:
+                    numeric_columns = dataset.select_dtypes(include="number")
+                    if not numeric_columns.empty:
+                        st.write("Numeric Column Summary:")
+                        numeric_summary = numeric_columns.describe().T
+                        st.dataframe(numeric_summary)
                     else:
-                        st.success("Code executed successfully!")
+                        st.write("No numeric columns in the dataset.")
 
-                except Exception as execution_error:
-                    st.error(f"An error occurred during code execution: {execution_error}")
+            # Visualization Section
+            st.subheader("Generate Visualizations")
+            viz_query = st.text_input("Enter a request for visualization (e.g., 'Show a bar chart of sales by category'):")
 
+            if viz_query:
+                with st.spinner("Generating visualization..."):
+                    try:
+                        generated_code = process_query(viz_query, data_summary)
+                        if st.checkbox("Display Generated Code"):
+                            st.code(generated_code, language="python")
+
+                        execution_results, execution_output = run_generated_code(generated_code, dataset)
+
+                        if execution_output:
+                            st.write(execution_output)
+
+                        if "plt" in execution_results:
+                            st.pyplot(execution_results["plt"].gcf())  # type: ignore
+
+                        if isinstance(execution_results, str):
+                            st.error(execution_results)
+                        else:
+                            st.success("Visualization created successfully!")
+
+                    except Exception as e:
+                        st.error(f"An error occurred: {e}")
+
+        with tab2:
+            st.write("### Chat with Data Summary")
+            
+            query = st.text_input("Ask a question about the dataset:")
+            
+            if query:
+                with st.spinner("Analyzing your query..."):
+                    try:
+                        # Process the query
+                        response = process_NLP_query(query, data_summary)
+
+                        # Check if the response contains Python code (for data analysis/visualization)
+                        if any(keyword in response for keyword in ["import ", "plt.", "df."]):
+                            
+                            # Option to display generated code
+                            if st.checkbox("Display Generated Code", key="chat_code"):
+                                st.code(response, language="python")
+
+                            # Execute the generated code
+                            execution_results, execution_output = run_generated_code(response, dataset)
+
+                            # Display execution output (if any)
+                            if execution_output:
+                                st.write("### Execution Output:")
+                                st.write(execution_output)
+
+                            # Display matplotlib plots if generated
+                            if "plt" in execution_results:
+                                st.pyplot(execution_results["plt"].gcf())  # type: ignore
+
+                            # Handle general execution results
+                            if isinstance(execution_results, str):
+                                st.error(execution_results)
+                            else:
+                                st.success("Query processed successfully!")
+
+                        else:
+                            # NLP-based response (plain text answer)
+                            st.write("### Answer:")
+                            st.write(response)
+
+                    except Exception as e:
+                        st.error(f"Error processing query: {e}")
     except Exception as e:
-        st.error(f"Error loading file: {e}")
+                        st.error(f"Error loading file: {e}")
+            
