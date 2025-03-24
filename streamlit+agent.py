@@ -15,7 +15,7 @@ df_csv.to_csv(cleaned_csv_path, index=False)
 from langchain_groq import ChatGroq
 from langchain_experimental.agents.agent_toolkits import create_csv_agent
 
-groq_api = "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"
+groq_api = "add you API key"
 llm = ChatGroq(temperature=0, model="llama3-70b-8192", api_key=groq_api)
 
 # Use the cleaned CSV file
