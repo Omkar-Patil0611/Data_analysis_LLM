@@ -4,7 +4,7 @@ from data_insights import generate_summary
 
 # Initialize Groq API
 # GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
-GROQ_API_KEY = "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"
+GROQ_API_KEY = "Add your key"
 groq_client = Groq(api_key=GROQ_API_KEY)
 def process_query(query, data_summary):
     system_message = (
